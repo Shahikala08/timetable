@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Timetable</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f0f3ff;
+      color: #111;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      background-color: #4c51bf;
+      color: white;
+      width: 100%;
+      padding: 1rem 0;
+      font-weight: 700;
+      font-size: 1.25rem;
+      text-align: center;
+      border-radius: 0 0 10px 10px;
+      user-select: none;
+    }
+    header span { margin-right: 0.5rem; font-size: 1.5rem; }
+    main { max-width: 700px; width: 90%; margin-top: 2rem; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+      padding: 1.5rem 2rem;
+      margin-bottom: 1.5rem;
+    }
+    h3 { margin-top: 0; margin-bottom: 0.75rem; }
+    ul { padding-left: 1.25rem; margin: 0; }
+    button {
+      background-color: #4c51bf;
+      color: white;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover { background-color: #3b41a1; }
+    input, textarea {
+      padding: 0.5rem;
+      margin: 0.3rem 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      width: 100%;
+    }
+    .emoji-party { margin-left: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <span>📅</span> My Timetable
+  </header>
+
+  <main>
+    <section class="card" id="now-section">
+      <h3>Now</h3>
+      <p id="now-class">Loading...</p>
+    </section>
+
+    <section class="card" id="next-section">
+      <h3>Next</h3>
+      <p id="next-class">Loading...</p>
+    </section>
+
+    <section class="card" id="timetable-section">
+      <h3>Today's Full Timetable</h3>
+      <ul id="full-timetable"></ul>
+    </section>
+
+    <section class="card" id="notifications-section">
+      <h3>Notifications</h3>
+      <button id="enable-notifications">Enable Notifications</button>
+    </section>
+
+    <section class="card" id="tasks-section">
+      <h3>📌 Add task</h3>
+      <form id="task-form">
+        <input type="text" id="task-input" placeholder="Enter task..." required>
+        <input type="datetime-local" id="task-time" required>
+        <button type="submit">Add Task</button>
+      </form>
+      <ul id="task-list"></ul>
+    </section>
+  </main>
+
+  <script>
+    // ------------------ TIMETABLE ------------------
+    const weeklyTimetable = {
+      "Monday": [
+        ["08:00", "09:00", "SE&PM"],
+        ["09:00", "10:00", "Library"],
+        ["10:00", "10:30", "Break"],
+        ["10:30", "11:30", "RM&IPR"],
+        ["11:30", "12:30", "CV"],
+        ["12:30", "13:30", "Lunch"],
+        ["13:30", "14:30", "Mentoring"],
+        ["14:30", "15:30", "NSS"]
+      ],
+      "Tuesday": [
+        ["08:00", "09:00", "RM&IPR"],
+        ["09:00", "10:00", "TC"],
+        ["10:00", "10:30", "Break"],
+        ["10:30", "12:30", "CN Lab"],
+        ["12:30", "13:30", "Lunch"],
+        ["13:30", "14:30", "NSS"],
+        ["14:30", "16:30", "Mini Project"]
+      ],
+      "Wednesday": [
+        ["08:00", "09:00", "CN"],
+        ["09:00", "10:00", "EVS"],
+        ["10:00", "10:30", "Break"],
+        ["10:30", "11:30", "SE&PM"],
+        ["11:30", "12:30", "TC"],
+        ["12:30", "13:30", "Lunch"],
+        ["13:30", "14:30", "Remedial"],
+        ["14:30", "16:30", "Mini Project"]
+      ],
+      "Thursday": [
+        ["08:00", "09:00", "RM&IPR"],
+        ["09:00", "10:00", "CV"],
+        ["10:00", "10:30", "Break"],
+        ["10:30", "11:30", "CN"],
+        ["11:30", "12:30", "SE&PM"],
+        ["12:30", "13:30", "Lunch"],
+        ["13:30", "14:30", "TC"]
+      ],
+      "Friday": [
+        ["08:00", "09:00", "TC"],
+        ["09:00", "10:00", "CN"],
+        ["10:00", "10:30", "Break"],
+        ["10:30", "11:30", "SE&PM"],
+        ["11:30", "12:30", "CV"],
+        ["12:30", "13:30", "Lunch"],
+        ["13:30", "15:30", "Forum Activity"]
+      ],
+      "Saturday": [
+        ["08:00", "10:00", "DV Lab"],
+        ["10:00", "10:30", "Break"],
+        ["10:30", "11:30", "RM&IPR"],
+        ["11:30", "12:30", "TC"]
+      ]
+      
+    };
+
+    let today = new Date().toLocaleDateString("en-US", { weekday: "long" });
+    let timetable = weeklyTimetable[today] || [];
+    let notified = new Set();
+
+    function parseTime(timeStr) {
+      const [hours, minutes] = timeStr.split(":").map(Number);
+      const d = new Date();
+      d.setHours(hours, minutes, 0, 0);
+      return d;
+    }
+
+    function displayFullTimetable() {
+      const ul = document.getElementById("full-timetable");
+      ul.innerHTML = "";
+      if (!timetable.length) {
+        const li = document.createElement("li");
+        li.textContent = "No classes today 🎉";
+        ul.appendChild(li);
+        return;
+      }
+      timetable.forEach(([start, end, name]) => {
+        const li = document.createElement("li");
+        li.textContent = `${start} - ${end} — ${name}`;
+        ul.appendChild(li);
+      });
+    }
+
+    function findNowNextClass() {
+      const now = new Date();
+      let nowClass = null, nextClass = null;
+      for (let i = 0; i < timetable.length; i++) {
+        const [start, end, name] = timetable[i];
+        const startTime = parseTime(start);
+        const endTime = parseTime(end);
+
+        if (now >= startTime && now < endTime) {
+          nowClass = { start, end, name };
+          if (i + 1 < timetable.length) nextClass = {
+            start: timetable[i+1][0],
+            end: timetable[i+1][1],
+            name: timetable[i+1][2]
+          };
+          break;
+        }
+        if (now < startTime) {
+          nextClass = { start, end, name };
+          break;
+        }
+      }
+      return { nowClass, nextClass };
+    }
+
+    function updateNowNext() {
+      const nowEl = document.getElementById("now-class");
+      const nextEl = document.getElementById("next-class");
+      if (!timetable.length) {
+        nowEl.innerHTML = `No class right now <span class="emoji-party">🎉</span>`;
+        nextEl.textContent = "No upcoming classes";
+        return;
+      }
+      const { nowClass, nextClass } = findNowNextClass();
+      if (nowClass) {
+        nowEl.textContent = `${nowClass.name} (${nowClass.start} - ${nowClass.end})`;
+        notify(nowClass);
+      } else {
+        nowEl.innerHTML = `No class right now <span class="emoji-party">🎉</span>`;
+      }
+      nextEl.textContent = nextClass
+        ? `${nextClass.name} (${nextClass.start} - ${nextClass.end})`
+        : "No upcoming classes";
+    }
+
+    function notify(cls) {
+      if (!("Notification" in window)) return;
+      if (Notification.permission !== "granted") return;
+      if (notified.has(cls.start)) return;
+      new Notification("Class Started 🎓", {
+        body: `${cls.name} is from ${cls.start} to ${cls.end}`,
+        icon: "https://img.icons8.com/color/96/calendar--v1.png"
+      });
+      notified.add(cls.start);
+    }
+
+    function handleNotifications() {
+      const btn = document.getElementById("enable-notifications");
+      btn.addEventListener("click", () => {
+        if (!("Notification" in window)) {
+          alert("Browser doesn’t support notifications.");
+          return;
+        }
+        if (Notification.permission === "granted") {
+          btn.disabled = true;
+          btn.textContent = "Notifications Enabled";
+          return;
+        }
+        Notification.requestPermission().then(p => {
+          if (p === "granted") {
+            btn.disabled = true;
+            btn.textContent = "Notifications Enabled";
+          }
+        });
+      });
+    }
+
+    // ------------------ TASKS ------------------
+    const taskForm = document.getElementById("task-form");
+    const taskList = document.getElementById("task-list");
+
+    function loadTasks() {
+      const saved = JSON.parse(localStorage.getItem("tasks") || "[]");
+      saved.forEach(({ task, time }) => addTaskToUI(task, time));
+    }
+
+    function addTaskToUI(task, time) {
+      const li = document.createElement("li");
+      li.textContent = `${task} — ${new Date(time).toLocaleString()}`;
+      taskList.appendChild(li);
+    }
+
+    taskForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const task = document.getElementById("task-input").value;
+      const time = document.getElementById("task-time").value;
+      if (!task || !time) return;
+
+      addTaskToUI(task, time);
+
+      // Save
+      const tasks = JSON.parse(localStorage.getItem("tasks") || "[]");
+      tasks.push({ task, time });
+      localStorage.setItem("tasks", JSON.stringify(tasks));
+
+      // Schedule notification (while site open)
+      const notifyTime = new Date(time).getTime() - Date.now();
+      if (notifyTime > 0) {
+        setTimeout(() => {
+          if (Notification.permission === "granted") {
+            new Notification("Task Reminder 📝", {
+              body: `${task} at ${new Date(time).toLocaleTimeString()}`,
+              icon: "https://img.icons8.com/color/96/task.png"
+            });
+          }
+        }, notifyTime);
+      }
+
+      taskForm.reset();
+    });
+
+    // ------------------ INIT ------------------
+    function init() {
+      displayFullTimetable();
+      updateNowNext();
+      handleNotifications();
+      loadTasks();
+      setInterval(updateNowNext, 60 * 1000);
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
